@@ -1635,6 +1635,9 @@ int search_binary_handler(struct linux_binprm *bprm)
 			continue;
 		read_unlock(&binfmt_lock);
 		bprm->recursion_depth++;
+
+		printk("%pF\n", fmt->load_binary);
+
 		retval = fmt->load_binary(bprm);
 		read_lock(&binfmt_lock);
 		put_binfmt(fmt);
@@ -1798,6 +1801,8 @@ static int do_execveat_common(int fd, struct filename *filename,
 		goto out;
 
 	would_dump(bprm, bprm->file);
+
+	printk("*** before exec_binprm ***\n");
 
 	retval = exec_binprm(bprm);
 	if (retval < 0)

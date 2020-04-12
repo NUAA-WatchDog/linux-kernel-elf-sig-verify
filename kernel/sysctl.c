@@ -1814,6 +1814,13 @@ static struct ctl_table fs_table[] = {
 		.child		= sysctl_mount_point,
 	},
 #endif
+#if defined(CONFIG_BINFMT_ELF_SV) || defined(CONFIG_BINFMT_ELF_SV_MODULE)
+	{
+		.procname	= "binfmt_elf_signature_verification",
+		.mode		= 0555,
+		.child		= sysctl_mount_point,
+	},
+#endif
 	{
 		.procname	= "pipe-max-size",
 		.data		= &pipe_max_size,
