@@ -39,22 +39,22 @@
 static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 {
 	int retval;
-    int verify_pass;
-    
-    printk("Start to verify the signature ...\n");
-    
-    /* Verifying the signature here. */
-    verify_pass = 1;
-    
-    if (verify_pass) {
-        printk("Verifying pass ...\n");
-        retval = -ENOEXEC;
-    } else {
-        printk("Verifying falied ...\n");
-        retval = 0;
-    }
-    
-    return retval;
+        int verify_pass;
+        
+        printk("Start to verify the signature ...\n");
+        
+        /* Verifying the signature here. */
+        verify_pass = 1;
+        
+        if (verify_pass) {
+                printk("Verifying pass ...\n");
+                retval = -ENOEXEC;
+        } else {
+                printk("Verifying falied ...\n");
+                retval = 0;
+        }
+        
+        return retval;
 }
 
 /*
@@ -67,13 +67,13 @@ static struct linux_binfmt elf_signature_verification_format = {
 
 static int __init init_elf_signature_verification_binfmt(void)
 {
-    register_binfmt(&elf_signature_verification_format);
-    return 0;
+        register_binfmt(&elf_signature_verification_format);
+        return 0;
 }
 
 static void __exit exit_elf_signature_verification_binfmt(void)
 {
-    unregister_binfmt(&elf_signature_verification_format);
+        unregister_binfmt(&elf_signature_verification_format);
 }
 
 core_initcall(init_elf_signature_verification_binfmt);
