@@ -132,7 +132,7 @@ out:
  * Loads ELF section String Table from the binary file elf_file.
  */
 /*{{{*/	// load_elf_strtab
-static unsigned char * load_elf_strtab(struct elf_shdr *elf_shdata,
+static unsigned char *load_elf_strtab(struct elf_shdr *elf_shdata,
 					struct file *elf_file,
 					Elf64_Half elf_strndx)
 {
@@ -185,7 +185,7 @@ out_ret:
  * Loads ELF section data from the binary file elf_file.
  */
 /*{{{*/	// load_elf_sdata
-static unsigned char * load_elf_sdata(struct elf_shdr *elf_shdata,
+static unsigned char *load_elf_sdata(struct elf_shdr *elf_shdata,
 					struct file *elf_file)
 {
 	int size, retval = -EIO, err = -1;
