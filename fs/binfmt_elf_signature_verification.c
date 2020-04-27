@@ -26,6 +26,8 @@
 #include <linux/fs.h>
 #include <linux/uaccess.h>
 
+#include <linux/verification.h>
+
 #include "internal.h"
 
 /* That's for binfmt_elf_fdpic to deal with */
@@ -47,6 +49,18 @@ struct linux_sfmt {
 	int		s_nlen;
 	// unsigned char	s_sig;
 };
+
+struct module_signature {
+	u8	algo;		/* Public-key crypto algorithm [0] */
+	u8	hash;		/* Digest algorithm [0] */
+	u8	id_type;	/* Key identifier type [PKEY_ID_PKCS7] */
+	u8	signer_len;	/* Length of signer's name [0] */
+	u8	key_id_len;	/* Length of key identifier [0] */
+	u8	__pad[3];
+	__be32	sig_len;	/* Length of signature data */
+};
+
+enum verify_signature_e { VPASS, VFAIL, VSKIP };
 
 /**
  * load_elf_shdrs() - load ELF section headers
@@ -283,10 +297,17 @@ out:
 	return sig_sdata;
 }
 
-static int verify_elf_ssig(unsigned char *new_ssdata,
-				unsigned char *old_ssdata)
+static int verify_elf_ssig(unsigned char *old_ssdata, int old_slen, 
+				unsigned char *new_ssdata, int new_slen)
 {
-	return 0;
+	int retval;
+	size_t sig_len = new_slen - sizeof(struct module_signature);
+
+	retval = verify_pkcs7_signature(old_ssdata, old_slen,
+					new_ssdata, sig_len, NULL,
+					VERIFYING_MODULE_SIGNATURE, NULL, NULL);
+	printk("verify_pkcs7_signature return value: %d\n", retval);
+	return retval;
 }
 
 /**
@@ -297,9 +318,10 @@ static int verify_elf_ssig(unsigned char *new_ssdata,
  */
 static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 {
-	int retval, index, i, j;
-	int len, verify_pass = 0;
-	unsigned char *elf_strtab, *elf_snstr, *elf_sdata, *elf_ssdata, *sig_sdata;
+	int retval, index, i, j, len;
+	int elf_slen, elf_sslen;
+	enum verify_signature_e verify_e = VFAIL;
+	unsigned char *elf_strtab, *elf_snstr, *elf_sdata, *elf_ssdata;
 	// loff_t pos;
 	struct elf_shdr *elf_spnt, *elf_shdata;
 	struct {
@@ -313,8 +335,8 @@ static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 		!memcmp(bprm->filename, "/etc/", 5) || !memcmp(bprm->filename, "/sbin/", 6) ||
 		!memcmp(bprm->filename, "/usr/bin/", 9) || !memcmp(bprm->filename, "/usr/sbin/", 10) ||
 		!memcmp(bprm->filename, "/usr/lib/", 9)) {
-		printk("Jump filename : %s", bprm->filename);
-		verify_pass = 1;
+		// printk("Jump filename : %s", bprm->filename);
+		verify_e = VSKIP;
 		retval = -ENOEXEC;
 		goto out_ret;
 	} else {
@@ -391,9 +413,9 @@ static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 					elf_sarr[j].s_name, elf_sarr[j].s_nlen))
 				continue;
 			/* 
-			 * Find two section with matching name (eg. sec and sec_sig).
-			 * Firstly, need to sign the sec, and compare with sec_sig
-			 * to verify the signature is vaild or not.
+			 * Find two sections with matching name (eg. sec and sec_sig).
+			 * Firstly, we need to load the two sections data,
+			 * and use pkcs7 to verify the signature is vaild or not.
 			 */
 
 			printk("Find two matching sections : %s %s",
@@ -401,54 +423,53 @@ static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 
 			// Step1. Load the sec data
 			elf_spnt = elf_shdata + j;
+			elf_slen = elf_spnt->sh_size;
 			elf_sdata = load_elf_sdata(elf_spnt, bprm->file);
 			if (!elf_sdata)
 				goto out_free_sarr;
-
-			// Step2. Run sign_elf_section to sign the section
-			sig_sdata = sign_elf_section(elf_sdata, elf_spnt->sh_size);
-			if (!sig_sdata)
-				goto out_free_sdata;
 			
-			// Step3. Load the sec_sig data
+			// Step2. Load the sec_sig data
 			elf_spnt = elf_shdata + i;
+			elf_sslen = elf_spnt->sh_size;
 			elf_ssdata = load_elf_sdata(elf_spnt, bprm->file);
 			if (!elf_ssdata)
-				goto out_free_sig_sdata;
+				goto out_free_sdata;
 
-			// Step4. Run verify_elf_ssig to verify the signature is valid or not
-			retval = verify_elf_ssig(sig_sdata, elf_ssdata);
+			// Step3. Run verify_elf_ssig to verify the signature is valid or not
+			retval = verify_elf_ssig(elf_sdata, elf_slen, elf_ssdata, elf_sslen);
 			if (retval)
 				goto out_free_ssdata;
 
 			kfree(elf_sdata);
-			kfree(sig_sdata);
+			// kfree(sig_sdata);
 			kfree(elf_ssdata);
 			elf_sdata = NULL;
-			sig_sdata = NULL;
+			// sig_sdata = NULL;
 			elf_ssdata = NULL;
 		}
 	}
 
 	/* Success! */
-	verify_pass = 1;
+	verify_e = VPASS;
 
 out:
 	kfree(loc);
 out_ret:
-	if (verify_pass) {
+	if (VPASS == verify_e) {
 		printk("Verifying pass ...\n");
 		retval = -ENOEXEC;
-	} else {
+	} else if (VFAIL == verify_e) {
 		printk("Verifying falied ...\n");
 		retval = -ENOMEM;
-	}
+	} else
+		retval = -ENOEXEC;
+
 	return retval;
 	
 out_free_ssdata:
 	kfree(elf_ssdata);
-out_free_sig_sdata:
-	kfree(sig_sdata);
+// out_free_sig_sdata:
+// 	kfree(sig_sdata);
 out_free_sdata:
 	kfree(elf_sdata);
 out_free_sarr:
