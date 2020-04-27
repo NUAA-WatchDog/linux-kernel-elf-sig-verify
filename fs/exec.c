@@ -1635,9 +1635,6 @@ int search_binary_handler(struct linux_binprm *bprm)
 			continue;
 		read_unlock(&binfmt_lock);
 		bprm->recursion_depth++;
-
-		// printk("%pF\n", fmt->load_binary);
-
 		retval = fmt->load_binary(bprm);
 		read_lock(&binfmt_lock);
 		put_binfmt(fmt);

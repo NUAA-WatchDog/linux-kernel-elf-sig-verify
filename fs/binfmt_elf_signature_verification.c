@@ -1,9 +1,14 @@
-/*
- * binfmt_elf_signature_verification.c
+/********************************************************************
  *
  * Copyright (C) 2020 Jingtang Zhang, Hua Zong
+ * 
+ * binfmt_elf_signature_verification.c
  *
- * binfmt_elf_signature_verification ...
+ * Verify the ELF's signature with built-in key-ring.
+ * If the signature is correct, return -ENOEXEC to invoke real
+ * ELF binary handler; else, return the error code to do_execve()
+ * and avoid the ELF being executed.
+ * 
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -50,7 +55,7 @@ struct linux_sfmt {
 	// unsigned char	s_sig;
 };
 
-struct module_signature {
+struct elf_signature {
 	u8	algo;		/* Public-key crypto algorithm [0] */
 	u8	hash;		/* Digest algorithm [0] */
 	u8	id_type;	/* Key identifier type [PKEY_ID_PKCS7] */
@@ -297,11 +302,11 @@ out:
 	return sig_sdata;
 }
 
-static int verify_elf_ssig(unsigned char *old_ssdata, int old_slen, 
+static int verify_elf_signature(unsigned char *old_ssdata, int old_slen, 
 				unsigned char *new_ssdata, int new_slen)
 {
 	int retval;
-	size_t sig_len = new_slen - sizeof(struct module_signature);
+	size_t sig_len = new_slen - sizeof(struct elf_signature);
 
 	retval = verify_pkcs7_signature(old_ssdata, old_slen,
 					new_ssdata, sig_len, NULL,
@@ -407,11 +412,13 @@ static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 		for (j = 0; j < loc->elf_ex.e_shnum; j++) {
 
 			/* Choose the sig section to be the first dim */
-			if (elf_sarr[i].s_nlen <= elf_sarr[j].s_nlen)
+			if (elf_sarr[i].s_nlen <= elf_sarr[j].s_nlen) {
 				continue;
+			}
 			if (memcmp_sig(elf_sarr[i].s_name, elf_sarr[i].s_nlen,
-					elf_sarr[j].s_name, elf_sarr[j].s_nlen))
+					elf_sarr[j].s_name, elf_sarr[j].s_nlen)) {
 				continue;
+			}
 			/* 
 			 * Find two sections with matching name (eg. sec and sec_sig).
 			 * Firstly, we need to load the two sections data,
@@ -425,20 +432,23 @@ static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 			elf_spnt = elf_shdata + j;
 			elf_slen = elf_spnt->sh_size;
 			elf_sdata = load_elf_sdata(elf_spnt, bprm->file);
-			if (!elf_sdata)
+			if (!elf_sdata) {
 				goto out_free_sarr;
+			}
 			
 			// Step2. Load the sec_sig data
 			elf_spnt = elf_shdata + i;
 			elf_sslen = elf_spnt->sh_size;
 			elf_ssdata = load_elf_sdata(elf_spnt, bprm->file);
-			if (!elf_ssdata)
+			if (!elf_ssdata) {
 				goto out_free_sdata;
+			}
 
-			// Step3. Run verify_elf_ssig to verify the signature is valid or not
-			retval = verify_elf_ssig(elf_sdata, elf_slen, elf_ssdata, elf_sslen);
-			if (retval)
+			// Step3. Run verify_elf_signature to verify the signature is valid or not
+			retval = verify_elf_signature(elf_sdata, elf_slen, elf_ssdata, elf_sslen);
+			if (retval) {
 				goto out_free_ssdata;
+			}
 
 			kfree(elf_sdata);
 			// kfree(sig_sdata);
@@ -460,7 +470,7 @@ out_ret:
 		retval = -ENOEXEC;
 	} else if (VFAIL == verify_e) {
 		printk("Verifying falied ...\n");
-		retval = -ENOMEM;
+		// retval = -ENOMEM;
 	} else
 		retval = -ENOEXEC;
 
