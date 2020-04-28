@@ -46,10 +46,12 @@
 #define ELF_MIN_ALIGN	PAGE_SIZE
 #endif
 
+enum verify_signature_e { VPASS, VFAIL, VSKIP };
+
 unsigned char SIG_SCN_SUFFIX[] = "_sig";
 
 struct linux_sfmt {
-	unsigned char * s_name;
+	unsigned char *s_name;
 	int		s_nlen;
 };
 
@@ -67,18 +69,17 @@ struct elf_checklist {
 	unsigned char s_name[8];
 	int s_nlen;
 	int s_check;
+} SCN_CHECKLIST[2] = {	/* The sections need to be verified */
+	{".text", 5, 0},
+	{".data", 5, 0}
 };
 
-enum verify_signature_e { VPASS, VFAIL, VSKIP };
-
-static int update_checklist(struct elf_checklist *elf_cklt,
-				int cklt_len,
-				unsigned char *sname)
+static int update_checklist(unsigned char *sname)
 {
 	int i, retval = 1;
-	for (i = 0; i < cklt_len; i++) {
-		if (!memcmp(elf_cklt[i].s_name, sname, elf_cklt[i].s_nlen)) {
-			elf_cklt[i].s_check = 1;
+	for (i = 0; i < sizeof(SCN_CHECKLIST) / sizeof(struct elf_checklist); i++) {
+		if (!memcmp(SCN_CHECKLIST[i].s_name, sname, SCN_CHECKLIST[i].s_nlen)) {
+			SCN_CHECKLIST[i].s_check = 1;
 			retval = 0;
 			goto out;
 		}
@@ -87,13 +88,12 @@ out:
 	return retval;
 }
 
-static int lookup_checklist(struct elf_checklist *elf_cklt,
-				int cklt_len)
+static int lookup_checklist()
 {
 	int i, retval = 0;
-	for (i = 0; i < cklt_len; i++) {
-		if (0 == elf_cklt[i].s_check) {
-			printk(" Section '%s' must be signed !\n", elf_cklt[i].s_name);
+	for (i = 0; i < sizeof(SCN_CHECKLIST) / sizeof(struct elf_checklist); i++) {
+		if (0 == SCN_CHECKLIST[i].s_check) {
+			printk(" Section '%s' must be signed !\n", SCN_CHECKLIST[i].s_name);
 			retval = 1;
 			// goto out;
 		}
@@ -211,12 +211,12 @@ out_ret:
  * Subtract the input string to a new sub-str.
  */
 /*{{{*/	// sub_str
-static unsigned char * sub_str(unsigned char * str,
+static unsigned char *sub_str(unsigned char *str,
 				unsigned char subfg,
-				int * len)
+				int *len)
 {
 	int i = 0, j;
-	unsigned char * substr = NULL;
+	unsigned char *substr = NULL;
 
 	while (subfg != str[i]) i++;
 
@@ -241,15 +241,15 @@ out:
  * If signed_scn_name[prefix] == scn_name[prefix], then compare the suffix,
  * if signed_scn_name[suffix] == "_sig", comparison pass.
  * 
- * @signed_scn_name: The signed section name, e.g. ".text_sig".
- * @signed_scn_name_len: The length of signed section name.
  * @scn_name: The original section name, e.g. ".text".
  * @scn_name_len: The length of original section name.
+ * @signed_scn_name: The signed section name, e.g. ".text_sig".
+ * @signed_scn_name_len: The length of signed section name.
  *
  */
 /*{{{*/	// scn_name_cmp
-static int scn_name_cmp(unsigned char *signed_scn_name, int signed_scn_name_len,
-			unsigned char *scn_name, int scn_name_len)
+static int scn_name_cmp(unsigned char *scn_name, int scn_name_len,
+			unsigned char *signed_scn_name, int signed_scn_name_len)
 {
 	int retval = 1;
 	
@@ -270,24 +270,28 @@ out:
 /*}}}*/
 
 /**
- * verify_elf_signature() - verify ELF signature
- * @old_ssdata: The old section data without signature
- * @old_slen: The old section data length
- * @new_ssdata: The new section data with signature
- * @new_slen: The new section data length
+ * 
+ * verify_scn_signature() - verify the section signature.
+ * 
+ * Firstly, substract the length of signed section by the size of
+ * the structure elf_signature. Then, use verify_pkcs7_signature(...)
+ * to verify the signature.
+ * 
+ * @scn_data: Data of original section.
+ * @scn_data_len: Length of original section data.
+ * @sig_scn_data: Data of signature section.
+ * @sig_scn_data_len: Length of signature section data.
  *
- * Firstly, Substract new section length with sizeof(elf_signature),
- * then, use verify_pkcs7_signature(...) to verify the signature.
  */
-/*{{{*/	// verify_elf_signature
-static int verify_elf_signature(unsigned char *old_ssdata, int old_slen, 
-				unsigned char *new_ssdata, int new_slen)
+/*{{{*/	// verify_scn_signature
+static int verify_scn_signature(unsigned char *scn_data, int scn_data_len, 
+				unsigned char *sig_scn_data, int sig_scn_data_len)
 {
 	int retval;
-	size_t sig_len = new_slen - sizeof(struct elf_signature);
+	size_t sig_len = sig_scn_data_len - sizeof(struct elf_signature);
 
-	retval = verify_pkcs7_signature(old_ssdata, old_slen,
-					new_ssdata, sig_len, NULL,
+	retval = verify_pkcs7_signature(scn_data, scn_data_len,
+					sig_scn_data, sig_len, NULL,
 					VERIFYING_MODULE_SIGNATURE, NULL, NULL);
 	printk("verify_pkcs7_signature return value: %d\n", retval);
 	return retval;
@@ -313,8 +317,6 @@ static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 		struct elfhdr interp_elf_ex;
 	} *loc;
 	struct linux_sfmt *elf_sarr;
-
-	struct elf_checklist elf_cklt[2] = {{".text", 5, 0}, {".data", 5, 0}};
 	
 	/* We don't need to verify the system elf files */
 	if (!memcmp(bprm->filename, "/bin/", 5) || !memcmp(bprm->filename, "/lib/", 5) ||
@@ -350,7 +352,7 @@ static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 	if (!bprm->file->f_op->mmap)
 		goto out_free_loc;
 	
-	/* Load ELF section header table */
+	/* Load ELF's section header table */
 	elf_shdata = load_elf_shdrs(&loc->elf_ex, bprm->file);
 	if (!elf_shdata) {
 		retval = -ENOMEM;
@@ -362,7 +364,7 @@ static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 		goto out_free_shdata;
 	}
 
-	/* Load ELF section String Table */
+	/* Load ELF's String Table section */
 	elf_spnt = elf_shdata + loc->elf_ex.e_shstrndx;
 	elf_strtab = load_elf_sdata(elf_spnt, bprm->file);
 	if (!elf_strtab) {
@@ -406,17 +408,18 @@ static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 					elf_sarr[j].s_name, elf_sarr[j].s_nlen)) {
 				continue;
 			}
+
 			/* 
-			 * Find two sections with matching name (eg. sec and sec_sig).
-			 * Firstly, we need to load the two sections data,
+			 * Found two sections with matching name (e.g. .text and .text_sig).
+			 * Firstly, we need to load the data of two sections,
 			 * and use pkcs7 to verify the signature is vaild or not.
 			 */
 
 			printk("Find two matching sections : %s %s",
 					elf_sarr[i].s_name, elf_sarr[j].s_name);
 
-			// Step1. Load the sec data
-			elf_spnt = elf_shdata + j;
+			/* Load the original data section. */
+			elf_spnt = elf_shdata + i;
 			elf_slen = elf_spnt->sh_size;
 			elf_sdata = load_elf_sdata(elf_spnt, bprm->file);
 			if (!elf_sdata) {
@@ -424,8 +427,8 @@ static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 				goto out_free_sarr;
 			}
 			
-			// Step2. Load the sec_sig data
-			elf_spnt = elf_shdata + i;
+			/* Load the signature data section. */
+			elf_spnt = elf_shdata + j;
 			elf_sslen = elf_spnt->sh_size;
 			elf_ssdata = load_elf_sdata(elf_spnt, bprm->file);
 			if (!elf_ssdata) {
@@ -433,14 +436,14 @@ static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 				goto out_free_sdata;
 			}
 
-			// Step3. Run verify_elf_signature to verify the signature is valid or not
-			retval = verify_elf_signature(elf_sdata, elf_slen, elf_ssdata, elf_sslen);
+			/* Verify the signature. */
+			retval = verify_scn_signature(elf_sdata, elf_slen, elf_ssdata, elf_sslen);
 			if (retval) {
 				goto out_free_ssdata;
 			}
 
-			// Step4. Update the checklist
-			update_checklist(elf_cklt, 2, elf_sarr[j].s_name);
+			/* Update check list status. */
+			update_checklist(elf_sarr[i].s_name);
 
 			kfree(elf_sdata);
 			kfree(elf_ssdata);
@@ -449,7 +452,7 @@ static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 		}
 	}
 	
-	if (!lookup_checklist(elf_cklt, 2)) {
+	if (!lookup_checklist()) {
 		/* Success! */
 		verify_e = VPASS;
 	} else {
