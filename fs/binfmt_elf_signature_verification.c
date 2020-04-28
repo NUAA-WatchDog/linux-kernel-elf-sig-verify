@@ -479,14 +479,7 @@ static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 		verify_e = VFAIL;
 	}
 	
-	// /* Free those kernel memory space we have allocated before */
-	// for (i = 0; i < elf_snum; i++) {
-	// 	kfree(elf_sarr[i].s_name);
-	// }
-	// kfree(elf_sarr);
-	// kfree(elf_strtab);
-	// kfree(elf_shdata);
-	kfree(loc);
+	goto out_free_sarr;
 
 out_ret:
 	if (VPASS == verify_e) {
