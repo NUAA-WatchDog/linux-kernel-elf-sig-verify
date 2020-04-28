@@ -65,21 +65,19 @@ struct elf_signature {
 	__be32	sig_len;	/* Length of signature data */
 };
 
-struct elf_checklist {
+struct scn_checklist {
 	unsigned char s_name[8];
 	int s_nlen;
 	int s_check;
-} SCN_CHECKLIST[2] = {	/* The sections need to be verified */
-	{".text", 5, 0},
-	{".data", 5, 0}
 };
 
-static int update_checklist(unsigned char *sname)
+static int update_checklist(struct scn_checklist *scn_cklt, int cklt_len,
+			unsigned char *sname)
 {
 	int i, retval = 1;
-	for (i = 0; i < sizeof(SCN_CHECKLIST) / sizeof(struct elf_checklist); i++) {
-		if (!memcmp(SCN_CHECKLIST[i].s_name, sname, SCN_CHECKLIST[i].s_nlen)) {
-			SCN_CHECKLIST[i].s_check = 1;
+	for (i = 0; i < cklt_len; i++) {
+		if (!memcmp(scn_cklt[i].s_name, sname, scn_cklt[i].s_nlen)) {
+			scn_cklt[i].s_check = 1;
 			retval = 0;
 			goto out;
 		}
@@ -88,12 +86,12 @@ out:
 	return retval;
 }
 
-static int lookup_checklist()
+static int lookup_checklist(struct scn_checklist *scn_cklt, int cklt_len)
 {
 	int i, retval = 0;
-	for (i = 0; i < sizeof(SCN_CHECKLIST) / sizeof(struct elf_checklist); i++) {
-		if (0 == SCN_CHECKLIST[i].s_check) {
-			printk(" Section '%s' must be signed !\n", SCN_CHECKLIST[i].s_name);
+	for (i = 0; i < cklt_len; i++) {
+		if (0 == scn_cklt[i].s_check) {
+			printk(" Section '%s' must be signed !\n", scn_cklt[i].s_name);
 			retval = 1;
 			// goto out;
 		}
@@ -317,12 +315,21 @@ static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 		struct elfhdr interp_elf_ex;
 	} *loc;
 	struct linux_sfmt *elf_sarr;
+
+	struct scn_checklist scn_cklt[] = {
+		{".text", 5, 0},
+		{".data", 5, 0}
+	};
 	
 	/* We don't need to verify the system elf files */
-	if (!memcmp(bprm->filename, "/bin/", 5) || !memcmp(bprm->filename, "/lib/", 5) ||
-		!memcmp(bprm->filename, "/etc/", 5) || !memcmp(bprm->filename, "/sbin/", 6) ||
-		// !memcmp(bprm->filename, "/usr/bin/", 9) || !memcmp(bprm->filename, "/usr/sbin/", 10) ||
-		!memcmp(bprm->filename, "/usr/", 5) || !memcmp(bprm->filename, "/tmp/", 5) ||
+	if (!memcmp(bprm->filename, "/bin/", 5) ||
+		!memcmp(bprm->filename, "/lib/", 5) ||
+		!memcmp(bprm->filename, "/etc/", 5) ||
+		!memcmp(bprm->filename, "/sbin/", 6) ||
+		// !memcmp(bprm->filename, "/usr/bin/", 9) ||
+		// !memcmp(bprm->filename, "/usr/sbin/", 10) ||
+		!memcmp(bprm->filename, "/usr/", 5) ||
+		!memcmp(bprm->filename, "/tmp/", 5) ||
 		!memcmp(bprm->filename, "/var/", 5)) {
 		verify_e = VSKIP;
 		goto out_ret;
@@ -437,13 +444,16 @@ static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 			}
 
 			/* Verify the signature. */
-			retval = verify_scn_signature(elf_sdata, elf_slen, elf_ssdata, elf_sslen);
+			retval = verify_scn_signature(elf_sdata, elf_slen,
+						elf_ssdata, elf_sslen);
 			if (retval) {
 				goto out_free_ssdata;
 			}
 
 			/* Update check list status. */
-			update_checklist(elf_sarr[i].s_name);
+			update_checklist(scn_cklt,
+					sizeof(scn_cklt) / sizeof(struct scn_checklist),
+					elf_sarr[i].s_name);
 
 			kfree(elf_sdata);
 			kfree(elf_ssdata);
@@ -452,7 +462,8 @@ static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 		}
 	}
 	
-	if (!lookup_checklist()) {
+	if (!lookup_checklist(scn_cklt,
+			sizeof(scn_cklt) / sizeof(struct scn_checklist))) {
 		/* Success! */
 		verify_e = VPASS;
 	} else {
