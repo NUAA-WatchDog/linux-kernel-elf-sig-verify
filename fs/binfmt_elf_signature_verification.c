@@ -46,7 +46,7 @@
 #define ELF_MIN_ALIGN	PAGE_SIZE
 #endif
 
-#define SIG_SUFFIX_SIZE 4
+unsigned char SIG_SCN_SUFFIX[] = "_sig";
 
 struct linux_sfmt {
 	// int 		s_id;
@@ -254,29 +254,31 @@ out:
 /*}}}*/
 
 /**
- * memcmp_sig() - memory compare for signature
- * @sstr: The longer string 
- * @sslen: The length of longer string 
- * @dstr: The shorter string 
- * @sslen: The length of shorter string 
+ * scn_name_cmp() - memory compare for section names.
+ * 
+ * Firstly, compare the prefix of signed_scn_name and scn_name.
+ * If signed_scn_name[prefix] == scn_name[prefix], then compare the suffix,
+ * if signed_scn_name[suffix] == "_sig", comparison pass.
+ * 
+ * @signed_scn_name: The signed section name, e.g. ".text_sig".
+ * @signed_scn_name_len: The length of signed section name.
+ * @scn_name: The original section name, e.g. ".text".
+ * @scn_name_len: The length of original section name.
  *
- * Firstly, compare the prefix of sstr and dstr,
- * if sstr[prefix]=dstr[prefix], then compare the suffix,
- * if sstr[suffix]="_sig", compare pass.
  */
-/*{{{*/	// memcmp_sig
-static int memcmp_sig(unsigned char * sstr, int sslen,
-			unsigned char * dstr, int dslen)
+/*{{{*/	// scn_name_cmp
+static int scn_name_cmp(unsigned char *signed_scn_name, int signed_scn_name_len,
+			unsigned char *scn_name, int scn_name_len)
 {
 	int retval = 1;
-	unsigned char sig_suffix[SIG_SUFFIX_SIZE + 1] = "_sig";
-
-	/* Default -> sslen > dslen */
-	if (SIG_SUFFIX_SIZE != (sslen - dslen))
+	
+	/* Default -> signed_scn_name_len > scn_name_len */
+	if ((sizeof(SIG_SCN_SUFFIX) - 1) != (signed_scn_name_len - scn_name_len))
 		goto out;
-	if (memcmp(sstr, dstr, dslen))
+	if (memcmp(signed_scn_name, scn_name, scn_name_len))
 		goto out;
-	if (memcmp(sstr + dslen, sig_suffix, SIG_SUFFIX_SIZE))
+	if (memcmp(signed_scn_name + scn_name_len,
+			SIG_SCN_SUFFIX, sizeof(SIG_SCN_SUFFIX) - 1))
 		goto out;
 
 	/* Success! */
@@ -415,7 +417,7 @@ static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 			if (elf_sarr[i].s_nlen <= elf_sarr[j].s_nlen) {
 				continue;
 			}
-			if (memcmp_sig(elf_sarr[i].s_name, elf_sarr[i].s_nlen,
+			if (scn_name_cmp(elf_sarr[i].s_name, elf_sarr[i].s_nlen,
 					elf_sarr[j].s_name, elf_sarr[j].s_nlen)) {
 				continue;
 			}
