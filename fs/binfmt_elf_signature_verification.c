@@ -322,7 +322,7 @@ static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 
 	struct scn_checklist scn_cklt[] = {
 		{".text", 5, 0},
-		{".data", 5, 0}
+		// {".data", 5, 0}
 	};
 	
 	/* We don't need to verify the system elf files */
@@ -371,7 +371,7 @@ static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 	}
 	
 	if (SHN_UNDEF == loc->elf_ex.e_shstrndx) {
-		retval = -EBADMSG;
+		retval = -ENOKEY;
 		goto out_free_shdata;
 	}
 
@@ -475,7 +475,7 @@ static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 			sizeof(scn_cklt) / sizeof(struct scn_checklist))) {
 		verify_e = VPASS;
 	} else {
-		retval = -EBADMSG;
+		retval = -ENOKEY;
 		verify_e = VFAIL;
 	}
 	
