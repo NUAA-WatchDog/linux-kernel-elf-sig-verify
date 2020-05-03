@@ -9,7 +9,7 @@
  * ELF binary handler; else, return the error code to do_execve()
  * and avoid the ELF being executed.
  * 
- */
+ ********************************************************************/
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
@@ -55,15 +55,15 @@ struct linux_sfmt {
 	int		s_nlen;
 };
 
-struct elf_signature {
-	u8	algo;		/* Public-key crypto algorithm [0] */
-	u8	hash;		/* Digest algorithm [0] */
-	u8	id_type;	/* Key identifier type [PKEY_ID_PKCS7] */
-	u8	signer_len;	/* Length of signer's name [0] */
-	u8	key_id_len;	/* Length of key identifier [0] */
-	u8	__pad[3];
-	__be32	sig_len;	/* Length of signature data */
-};
+// struct elf_signature {
+// 	u8	algo;		/* Public-key crypto algorithm [0] */
+// 	u8	hash;		/* Digest algorithm [0] */
+// 	u8	id_type;	/* Key identifier type [PKEY_ID_PKCS7] */
+// 	u8	signer_len;	/* Length of signer's name [0] */
+// 	u8	key_id_len;	/* Length of key identifier [0] */
+// 	u8	__pad[3];
+// 	__be32	sig_len;	/* Length of signature data */
+// };
 
 struct scn_checklist {
 	unsigned char s_name[8];
@@ -274,9 +274,7 @@ out:
  * 
  * verify_scn_signature() - verify the section signature.
  * 
- * Firstly, substract the length of signed section by the size of
- * the structure elf_signature. Then, use verify_pkcs7_signature(...)
- * to verify the signature.
+ * Use verify_pkcs7_signature(...) to verify the signature.
  * 
  * @scn_data: Data of original section.
  * @scn_data_len: Length of original section data.
@@ -289,11 +287,10 @@ static int verify_scn_signature(unsigned char *scn_data, int scn_data_len,
 				unsigned char *sig_scn_data, int sig_scn_data_len)
 {
 	int retval;
-	size_t sig_len = sig_scn_data_len - sizeof(struct elf_signature);
 
 	retval = verify_pkcs7_signature(scn_data, scn_data_len,
-					sig_scn_data, sig_len, NULL,
-					VERIFYING_MODULE_SIGNATURE, NULL, NULL);
+					sig_scn_data, sig_scn_data_len,
+					NULL, VERIFYING_MODULE_SIGNATURE, NULL, NULL);
 	printk("verify_pkcs7_signature return value: %d\n", retval);
 	return retval;
 }
