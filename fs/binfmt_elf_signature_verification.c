@@ -368,7 +368,7 @@ static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 	}
 	
 	if (SHN_UNDEF == loc->elf_ex.e_shstrndx) {
-		retval = -ENOKEY;
+		retval = -EBADMSG;
 		goto out_free_shdata;
 	}
 
