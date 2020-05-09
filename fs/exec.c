@@ -72,6 +72,8 @@
 
 #include <trace/events/sched.h>
 
+#include <linux/time.h>
+
 int suid_dumpable = 0;
 
 static LIST_HEAD(formats);
@@ -1702,6 +1704,12 @@ static int do_execveat_common(int fd, struct filename *filename,
 	struct files_struct *displaced;
 	int retval;
 
+	struct timespec64 timer_in;
+	struct timespec64 timer_out;
+	long inteval;
+
+	getnstimeofday64(&timer_in);
+
 	if (IS_ERR(filename))
 		return PTR_ERR(filename);
 
@@ -1800,6 +1808,13 @@ static int do_execveat_common(int fd, struct filename *filename,
 	would_dump(bprm, bprm->file);
 
 	retval = exec_binprm(bprm);
+
+	getnstimeofday64(&timer_out);
+	inteval = (timer_in.tv_sec != timer_out.tv_sec) ?
+		(timer_out.tv_sec - timer_in.tv_sec) * 1000000000 + (timer_out.tv_nsec - timer_in.tv_nsec) :
+		timer_out.tv_nsec - timer_in.tv_nsec;
+	printk("@@@%s@@@%ld\n", filename->name, inteval);
+
 	if (retval < 0)
 		goto out;
 

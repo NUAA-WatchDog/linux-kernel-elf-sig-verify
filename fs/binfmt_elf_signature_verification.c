@@ -91,7 +91,6 @@ static int lookup_checklist(struct scn_checklist *scn_cklt, int cklt_len)
 	int i, retval = 0;
 	for (i = 0; i < cklt_len; i++) {
 		if (0 == scn_cklt[i].s_check) {
-			printk(" Section '%s' must be signed !\n", scn_cklt[i].s_name);
 			retval = 1;
 			// goto out;
 		}
@@ -281,7 +280,7 @@ out:
  * @sig_scn_data: Data of signature section.
  * @sig_scn_data_len: Length of signature section data.
  *
- */
+ */timer_out
 /*{{{*/	// verify_scn_signature
 static int verify_scn_signature(unsigned char *scn_data, int scn_data_len, 
 				unsigned char *sig_scn_data, int sig_scn_data_len)
@@ -291,7 +290,6 @@ static int verify_scn_signature(unsigned char *scn_data, int scn_data_len,
 	retval = verify_pkcs7_signature(scn_data, scn_data_len,
 					sig_scn_data, sig_scn_data_len,
 					NULL, VERIFYING_MODULE_SIGNATURE, NULL, NULL);
-	printk("verify_pkcs7_signature return value: %d\n", retval);
 	return retval;
 }
 /*}}}*/
@@ -335,8 +333,6 @@ static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 		verify_e = VSKIP;
 		goto out_ret;
 	}
-
-	printk("Start verify '%s' ...", bprm->filename);
 
 	loc = kmalloc(sizeof(*loc), GFP_KERNEL);
 	if (!loc) {
@@ -395,12 +391,9 @@ static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 		elf_sname = sub_str(&elf_strtab[index], '\0', &elf_slen);
 		elf_sarr[i].s_name = elf_sname;
 		elf_sarr[i].s_nlen = elf_slen;
-		printk("Section\t name '%s'\t len %d\n", elf_sarr[i].s_name, elf_sarr[i].s_nlen);
 		elf_shptr++;
 	}
 
-	printk("Start to verify the signature ...\n");
-	
 	/* 
 	 * Find out the signature sections with suffix '_sig',
 	 * then verify the signature.
@@ -427,8 +420,6 @@ static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 			 * Found two sections with matching name, e.g. ".text" and
 			 * ".text_sig". Then, we need to load the data of two sections.
 			 */
-			printk("Find two matching sections : %s %s",
-					elf_sarr[i].s_name, elf_sarr[j].s_name);
 
 			/* Load the original data section. */
 			elf_shptr = elf_shdata + i;
