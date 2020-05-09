@@ -280,7 +280,7 @@ out:
  * @sig_scn_data: Data of signature section.
  * @sig_scn_data_len: Length of signature section data.
  *
- */timer_out
+ */
 /*{{{*/	// verify_scn_signature
 static int verify_scn_signature(unsigned char *scn_data, int scn_data_len, 
 				unsigned char *sig_scn_data, int sig_scn_data_len)
