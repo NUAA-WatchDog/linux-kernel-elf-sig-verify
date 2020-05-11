@@ -1,6 +1,6 @@
 /********************************************************************
  *
- * Copyright (C) 2020 Jingtang Zhang, Hua Zong
+ * Copyright (C) 2020, Jingtang Zhang, Hua Zong
  * 
  * binfmt_elf_signature_verification.c
  *
@@ -321,15 +321,15 @@ static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 	};
 	
 	/* We don't need to verify the system elf files */
-	if (!memcmp(bprm->filename, "/bin/", 5) ||
-		!memcmp(bprm->filename, "/lib/", 5) ||
-		!memcmp(bprm->filename, "/etc/", 5) ||
-		!memcmp(bprm->filename, "/sbin/", 6) ||
-		// !memcmp(bprm->filename, "/usr/bin/", 9) ||
-		// !memcmp(bprm->filename, "/usr/sbin/", 10) ||
-		!memcmp(bprm->filename, "/usr/", 5) ||
-		!memcmp(bprm->filename, "/tmp/", 5) ||
-		!memcmp(bprm->filename, "/var/", 5)) {
+	if (!memcmp(bprm->interp, "/bin/", 5) ||
+		!memcmp(bprm->interp, "/lib/", 5) ||
+		!memcmp(bprm->interp, "/etc/", 5) ||
+		!memcmp(bprm->interp, "/sbin/", 6) ||
+		// !memcmp(bprm->interp, "/usr/bin/", 9) ||
+		// !memcmp(bprm->interp, "/usr/sbin/", 10) ||
+		!memcmp(bprm->interp, "/usr/", 5) ||
+		!memcmp(bprm->interp, "/tmp/", 5) ||
+		!memcmp(bprm->interp, "/var/", 5)) {
 		verify_e = VSKIP;
 		goto out_ret;
 	}
