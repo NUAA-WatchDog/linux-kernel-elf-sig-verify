@@ -33,8 +33,6 @@
 
 #include <linux/verification.h>
 
-#include "internal.h"
-
 /* That's for binfmt_elf_fdpic to deal with */
 #ifndef elf_check_fdpic
 #define elf_check_fdpic(ex) false
@@ -135,7 +133,7 @@ static struct elf_shdr *load_elf_shdrs(struct elfhdr *elf_ex,
 	if (size > ELF_MIN_ALIGN)
 		goto out;
 
-	elf_shdata = kmalloc(size, GFP_KERNEL);
+	elf_shdata = vmalloc(size);
 	if (!elf_shdata)
 		goto out;
 
@@ -150,7 +148,7 @@ static struct elf_shdr *load_elf_shdrs(struct elfhdr *elf_ex,
 	err = 0;
 out:
 	if (err) {
-		kfree(elf_shdata);
+		vfree(elf_shdata);
 		elf_shdata = NULL;
 	}
 	return elf_shdata;
@@ -179,7 +177,7 @@ static unsigned char *load_elf_sdata(struct elf_shdr *elf_shdata,
 
 	pos = elf_shdata->sh_offset;
 	size = elf_shdata->sh_size;
-	elf_sdata = kmalloc(size, GFP_KERNEL);
+	elf_sdata = vmalloc(size);
 	if (!elf_sdata)
 		goto out_ret;
 
@@ -194,7 +192,7 @@ static unsigned char *load_elf_sdata(struct elf_shdr *elf_shdata,
 	err = 0;
 out:
 	if (err) {
-		kfree(elf_sdata);
+		vfree(elf_sdata);
 		elf_sdata = NULL;
 	}
 out_ret:
@@ -223,7 +221,7 @@ static unsigned char *sub_str(unsigned char *str,
 
 	*len = i;
 
-	substr = kmalloc(++i, GFP_KERNEL);
+	substr = vmalloc(++i);
 	if (!substr)
 		goto out;
 
@@ -338,7 +336,7 @@ static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 
 	printk("Start verify '%s' ...", bprm->interp);
 
-	loc = kmalloc(sizeof(*loc), GFP_KERNEL);
+	loc = vmalloc(sizeof(*loc));
 	if (!loc) {
 		retval = -ENOMEM;
 		goto out_ret;
@@ -381,7 +379,7 @@ static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 	}
 
 	elf_snum = loc->elf_ex.e_shnum;
-	elf_sarr = kmalloc(sizeof(struct linux_sfmt) * elf_snum, GFP_KERNEL);
+	elf_sarr = vmalloc(sizeof(struct linux_sfmt) * elf_snum);
 	if (!elf_sarr) {
 		retval = -ENOMEM;
 		goto out_free_strtab;
@@ -460,8 +458,8 @@ static int load_elf_signature_verification_binary(struct linux_binprm *bprm)
 					sizeof(scn_cklt) / sizeof(struct scn_checklist),
 					elf_sarr[i].s_name);
 
-			kfree(elf_sdata);
-			kfree(elf_ssdata);
+			vfree(elf_sdata);
+			vfree(elf_ssdata);
 			elf_sdata = NULL;
 			elf_ssdata = NULL;
 		}
@@ -490,22 +488,22 @@ out_ret:
 	return retval;
 	
 out_free_ssdata:
-	kfree(elf_ssdata);
+	vfree(elf_ssdata);
 out_free_sdata:
-	kfree(elf_sdata);
+	vfree(elf_sdata);
 out_free_sarr:
 	for (i = 0; i < elf_snum; i++) {
 		if (!elf_sarr[i].s_name) {
-			kfree(elf_sarr[i].s_name);
+			vfree(elf_sarr[i].s_name);
 		}
 	}
-	kfree(elf_sarr);
+	vfree(elf_sarr);
 out_free_strtab:
-	kfree(elf_strtab);
+	vfree(elf_strtab);
 out_free_shdata:
-	kfree(elf_shdata);
+	vfree(elf_shdata);
 out_free_loc:
-	kfree(loc);
+	vfree(loc);
 	goto out_ret;
 }
 
