@@ -1809,12 +1809,6 @@ static int do_execveat_common(int fd, struct filename *filename,
 
 	retval = exec_binprm(bprm);
 
-	getnstimeofday64(&timer_out);
-	inteval = (timer_in.tv_sec != timer_out.tv_sec) ?
-		(timer_out.tv_sec - timer_in.tv_sec) * 1000000 + (timer_out.tv_nsec - timer_in.tv_nsec) / 1000 :
-		(timer_out.tv_nsec - timer_in.tv_nsec) / 1000;
-	printk("@@@%s@@@%ld\n", filename->name, inteval);
-
 	if (retval < 0)
 		goto out;
 
@@ -1829,6 +1823,13 @@ static int do_execveat_common(int fd, struct filename *filename,
 	putname(filename);
 	if (displaced)
 		put_files_struct(displaced);
+
+	getnstimeofday64(&timer_out);
+	inteval = (timer_in.tv_sec != timer_out.tv_sec) ?
+		(timer_out.tv_sec - timer_in.tv_sec) * 1000000 + (timer_out.tv_nsec - timer_in.tv_nsec) / 1000 :
+		(timer_out.tv_nsec - timer_in.tv_nsec) / 1000;
+	printk("@@@%s@@@%ld\n", filename->name, inteval);
+	
 	return retval;
 
 out:
