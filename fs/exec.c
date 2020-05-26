@@ -1707,7 +1707,6 @@ static int do_execveat_common(int fd, struct filename *filename,
 	struct timespec64 timer_in;
 	struct timespec64 timer_out;
 	long inteval;
-
 	getnstimeofday64(&timer_in);
 
 	if (IS_ERR(filename))
@@ -1818,17 +1817,18 @@ static int do_execveat_common(int fd, struct filename *filename,
 	membarrier_execve(current);
 	acct_update_integrals(current);
 	task_numa_free(current);
-	free_bprm(bprm);
-	kfree(pathbuf);
-	putname(filename);
-	if (displaced)
-		put_files_struct(displaced);
 
 	getnstimeofday64(&timer_out);
 	inteval = (timer_in.tv_sec != timer_out.tv_sec) ?
 		(timer_out.tv_sec - timer_in.tv_sec) * 1000000 + (timer_out.tv_nsec - timer_in.tv_nsec) / 1000 :
 		(timer_out.tv_nsec - timer_in.tv_nsec) / 1000;
 	printk("@@@%s@@@%ld\n", filename->name, inteval);
+
+	free_bprm(bprm);
+	kfree(pathbuf);
+	putname(filename);
+	if (displaced)
+		put_files_struct(displaced);
 	
 	return retval;
 
